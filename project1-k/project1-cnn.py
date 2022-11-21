@@ -71,11 +71,8 @@ if __name__ == "__main__":
 	
 	model = Module()
 	
-	criterion = nn.CrossEntropyLoss()#nn.MSELoss()
-	
+	criterion = nn.CrossEntropyLoss()
 	optimizer = torch.optim.SGD(model.parameters(), lr=0.01, weight_decay = 0.0005, momentum = 0.85)  
-	
-	# BATCH torch.Size([128, 1, 14, 14])
 	
 	epochs = 10
 	mini_batch_size = 50   #train_input.size(0) // epochs
@@ -90,24 +87,14 @@ if __name__ == "__main__":
 		for batch in range(n_mini_batch):
 			# use of mini-batch
 			u = torch.arange(batch*mini_batch_size, (batch+1)*mini_batch_size)
-			x = train_input[u]
-			y = train_classe[u]
-			
-			#print('\n',epoch, batch, u, x.size(), y.size())
-			
-			x = x[:,0].view(mini_batch_size,1,14,14)
-			y = y[:,0]
-			
-			#print(x.size(), y.size())
-			
-			
+			x = train_input[u][:,0].view(mini_batch_size,1,14,14)
+			y = train_classe[u][:,0]
+		
 			# zero the parameter gradient
 			optimizer.zero_grad()
 			
 			# forward + backward + optimize
 			outputs = model(x)
-			
-			#print('outputs',outputs.size())
 			
 			loss = criterion(outputs, y)
 			
