@@ -48,7 +48,9 @@ class Module(nn.Module):
 		
 		return x	
 	
-	def forward(self,x1, x2):
+	def forward(self,x):
+		x1 = x[:, 0]
+		x2 = x[:, 1]
 		y1 = self.forward_once(x1)
 		y2 = self.forward_once(x2) # torch.Size([50, 10])
 		

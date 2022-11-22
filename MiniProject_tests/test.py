@@ -33,9 +33,10 @@ def train_model(model, train_input, train_target, train_classes, mini_batch_size
             output, classes_pred = model(mini_batch_input)
             loss_target = criterionTarget(output, mini_batch_target)
             # loss on the classes prediction
-            loss_classes = criterionClass(classes_pred, mini_batch_classes)
+            loss_classes1 = criterionClass(classes_pred[0], mini_batch_classes[:,0,:])
+            loss_classes2 = criterionClass(classes_pred[1], mini_batch_classes[:,0,:])
             # total loss
-            loss = w_target * loss_target + w_classes * loss_classes
+            loss = w_target * loss_target + w_classes * (loss_classes1 + loss_classes2)
             # compute the accumulated loss
             acc_loss = acc_loss + loss.item()
             # gradient descent
@@ -71,12 +72,18 @@ class BaseLineNet(nn.Module):
 
 
     def forward(self, x):
+        # flatten view of the inputs
+        x = x.view(x.size(0), -1).float()
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         # apply a sigmoid (if we want a soft wax we should apply it separately to each half of the output)
         classes = torch.sigmoid(self.fc_classes(x))
+        # split the output in 2 parts
+        c1 = classes[:, :10]
+        c2 = classes[:, 10:]
         # to get the comparison, we need to use the predicted classes
         x = torch.sigmoid(self.fc_compare(classes))
+        classes = (c1, c2)
         # we output the prediction and the classes if we want to use auxiliary loss
         return x, classes
 
@@ -120,7 +127,7 @@ class SiameseConvNet1(nn.Module):
         # apply the fully connected layers to get the target prediction
         x = self.fcNet(classes.view(-1, 20))
         # we output the prediction and the classes if we want to use auxiliary loss
-        return x, classes
+        return x, (c1, c2)
 
 # siamese convolutional network with prior knowledge on comparison
 class SiameseConvNet2(nn.Module):
@@ -157,7 +164,52 @@ class SiameseConvNet2(nn.Module):
         upper_tri = torch.triu(joint_prob) # N x 10 x 10
         # sums the probabilities
         x = torch.sum(upper_tri, dim=(1, 2)).unsqueeze(1) # N x 1 => probability that the first digit is less or equal to the second digit
-        return x, classes
+        return x, (c1, c2)
+
+class KK(nn.Module):
+	def __init__(self):
+		super().__init__()
+
+		self.conv1 = nn.Conv2d(1, 32, kernel_size=3)
+		self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+		self.maxpool_2d = nn.MaxPool2d(2, 2)
+		self.fc1 = nn.Linear(5*5*64, 256)
+		self.fc2 = nn.Linear(256, 10)
+		
+		self.lin1 = nn.Linear(2, 120)
+		self.lin2 = nn.Linear(120, 2)
+		
+	def forward_once(self, x1):
+		x = F.relu(self.conv1(x1))
+		#x = F.dropout(x, p=0.5, training=self.training)
+		x = F.relu(F.max_pool2d(self.conv2(x), 2))
+		#x = F.dropout(x, p=0.5)#, training=training)
+		
+		x = x.view(-1, 5*5*64 )
+		x = F.relu(self.fc1(x))
+		#x = F.dropout(x, training=training)
+		x = self.fc2(x)
+		x = F.log_softmax(x, dim=1)
+		
+		return x	
+	
+	def forward(self,x):
+		x1 = x[:, 0].unsqueeze(1)
+		x2 = x[:, 1].unsqueeze(1)
+		y1 = self.forward_once(x1)
+		y2 = self.forward_once(x2) # torch.Size([50, 10])
+
+		a1, z1 = torch.max(y1, 1)
+		a2, z2 = torch.max(y2, 1)
+		
+		x = torch.cat((z1.view(-1, z1.size(0)), z2.view(-1, z2.size(0))), axis=0).t()
+		x = x.type(torch.FloatTensor)
+		
+		x = nn.functional.relu(self.lin1(x))
+		x = nn.functional.relu(self.lin2(x))
+		x = F.log_softmax(x, dim=1)
+		
+		return x[:,0].unsqueeze(1), (y1, y2)
 ############################################
 # ---- Test -------------------------------
 
@@ -189,12 +241,12 @@ if __name__ == "__main__":
     print(f"number of parameters for the baseline model: {nb_parameters(BaseLineNet())}")
     # train the baseline model
     baseline = BaseLineNet()
-    train_model(baseline, train_input_flat, train_target.float(), train_classes_flat, mini_batch_size=25, nb_epochs=25, lr=1e-1, criterionTarget=nn.BCELoss(), criterionClass=nn.CrossEntropyLoss(), w_target=0.8)
+    train_model(baseline, train_input, train_target.float(), train_classes.float(), mini_batch_size=25, nb_epochs=25, lr=6e-2, criterionTarget=nn.BCELoss(), criterionClass=nn.CrossEntropyLoss(), w_target=0.8)
 
     # test the baseline model
-    output, classes_pred = baseline(test_input_flat)
+    output, classes_pred = baseline(test_input)
     nb_errors = compute_nb_errors(output, test_target, binary=True)
-    print(f"\nnumber of errors: {nb_errors} / {test_input_flat.size(0)}, error rate: {nb_errors/test_input_flat.size(0)*100:.2f}%")
+    print(f"\nnumber of errors: {nb_errors} / {test_input.size(0)}, error rate: {nb_errors/test_input.size(0)*100:.2f}%")
 
     # siamese model 1
     print("\n##### Siamese model 1 #####")
@@ -215,7 +267,20 @@ if __name__ == "__main__":
     print(f"number of parameters for the siamese model 2: {nb_parameters(siameseConv)}")
     
     # train the siamese model
-    train_model(siameseConv, train_input, train_target.float(), train_classes.float(), mini_batch_size=25, nb_epochs=25, lr=1e-1, criterionTarget=nn.BCEWithLogitsLoss(), criterionClass=nn.CrossEntropyLoss(), w_target=0.1)
+    train_model(siameseConv, train_input, train_target.float(), train_classes.float(), mini_batch_size=25, nb_epochs=25, lr=8e-4, criterionTarget=nn.BCEWithLogitsLoss(), criterionClass=nn.CrossEntropyLoss(), w_target=0.2)
+
+    # test the siamese model
+    output, classes_pred = siameseConv(test_input)
+    nb_errors = compute_nb_errors(output, test_target, binary=True)
+    print(f"\nnumber of errors: {nb_errors} / {test_input.size(0)}, error rate: {nb_errors/test_input.size(0)*100:.2f}%")
+
+    # siamese model 2
+    print("\n##### Siamese model KK #####")
+    siameseConv = KK()
+    print(f"number of parameters for the siamese model 2: {nb_parameters(siameseConv)}")
+    
+    # train the siamese model
+    train_model(siameseConv, train_input, train_target.float(), train_classes.float(), mini_batch_size=25, nb_epochs=25, lr=8e-4, criterionTarget=nn.MSELoss(), criterionClass=nn.CrossEntropyLoss(), w_target=0.2)
 
     # test the siamese model
     output, classes_pred = siameseConv(test_input)
