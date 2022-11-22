@@ -18,6 +18,8 @@ from dlc_practical_prologue import generate_pair_sets
 			(use of nn to predict if digit is less than an other)
 		input - 2 images from MNIST dataset
 		output - corresponding label (0,1)
+		
+	- obtain 100% accuracy, but takes more time -
 			
 	https://arxiv.org/pdf/2103.00200.pdf
 
@@ -30,8 +32,8 @@ class Module(nn.Module):
 		self.conv1 = nn.Conv2d(1, 16, kernel_size=3) # 1, 16
 		self.conv2 = nn.Conv2d(16, 32, kernel_size=3) # 16, 8
 		self.maxpool_2d = nn.MaxPool2d(2, 2)
-		self.fc1 = nn.Linear(5*5*32, 160)
-		self.fc2 = nn.Linear(160, 10)
+		self.fc1 = nn.Linear(5*5*32, 256)
+		self.fc2 = nn.Linear(256, 10)
 		
 		self.lin1 = nn.Linear(2, 20)
 		self.lin2 = nn.Linear(20, 2)
@@ -107,8 +109,8 @@ if __name__ == "__main__":
 	optimizer = torch.optim.SGD(model.parameters(), lr=0.001, weight_decay = 0.0005, momentum = 0.85)  
 
 	
-	epochs = 10
-	mini_batch_size = 50 
+	epochs = 25
+	mini_batch_size = 20
 	n_mini_batch = train_input.size(0) // mini_batch_size
 	print('\nmini batch',mini_batch_size, n_mini_batch)
 	

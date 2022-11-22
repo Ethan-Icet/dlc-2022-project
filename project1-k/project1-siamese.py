@@ -8,6 +8,8 @@ import torch.optim
 
 import numpy as np
 
+from datetime import datetime
+
 from dlc_practical_prologue import generate_pair_sets
 
 """#######################################################################
@@ -25,11 +27,11 @@ class Module(nn.Module):
 	def __init__(self):
 		super().__init__()
 		
-		self.conv1 = nn.Conv2d(1, 32, kernel_size=3)
-		self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+		self.conv1 = nn.Conv2d (1, 8, kernel_size=3) #(1, 32, kernel_size=3) 
+		self.conv2 = nn.Conv2d(8, 16, kernel_size=3) #(32, 64, kernel_size=3)
 		self.maxpool_2d = nn.MaxPool2d(2, 2)
-		self.fc1 = nn.Linear(5*5*64, 256)
-		self.fc2 = nn.Linear(256, 10)
+		self.fc1 = nn.Linear(5*5*16, 120) #(5*5*64, 256)
+		self.fc2 = nn.Linear(120, 10) #(256, 10)
 		
 	def forward_once(self, x1):
 		x = F.relu(self.conv1(x1))
@@ -37,7 +39,8 @@ class Module(nn.Module):
 		x = F.relu(F.max_pool2d(self.conv2(x), 2))
 		#x = F.dropout(x, p=0.5)#, training=training)
 		
-		x = x.view(-1, 5*5*64 )
+		x = x.view(-1, 5*5*16 ) #(-1, 5*5*64 )
+		
 		x = F.relu(self.fc1(x))
 		#x = F.dropout(x, training=training)
 		x = self.fc2(x)
@@ -73,6 +76,12 @@ class ContrastiveLoss(nn.Module):
 		return torch.tensor(loss, requires_grad = True)
 
 
+# Function to compute the number of parameters in a model
+def nb_parameters(model, trainable_only=True):
+	if trainable_only:
+		return sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
+	else:
+		return sum(parameter.numel() for parameter in model.parameters())
 
 
 if __name__ == "__main__":
@@ -99,7 +108,8 @@ if __name__ == "__main__":
 	test_classe = z[2]
 	print('test_classe', test_classe.size())
 
-	
+
+	print(f"number of parameters for the baseline model: {nb_parameters(Module())}")
 	model = Module()
 	
 	criterion1 = nn.CrossEntropyLoss()
@@ -108,11 +118,11 @@ if __name__ == "__main__":
 	optimizer = torch.optim.SGD(model.parameters(), lr=0.001, weight_decay = 0.0005, momentum = 0.85)  
 
 	epochs = 10
-	mini_batch_size = 20   #train_input.size(0) // epochs
+	mini_batch_size = 50   #train_input.size(0) // epochs
 	n_mini_batch = train_input.size(0) // mini_batch_size
 	print('\nmini batch',mini_batch_size, n_mini_batch)
 	
-	
+	start_time = datetime.now()
 	for epoch in range(epochs):
 		running_loss = 0.0
 		
@@ -147,11 +157,14 @@ if __name__ == "__main__":
 			optimizer.step()
 			
 			running_loss += loss.item()
-			if batch % 10 == 9:    # print every 2000 mini-batches
-				print(f'[{epoch + 1}, {batch + 1:5d}] loss: {running_loss / 2000:.3f}')
-				running_loss = 0.0
+			#if batch % 10 == 9:    # print every 2000 mini-batches
+				#print(f'[{epoch + 1}, {batch + 1:5d}] loss: {running_loss / 2000:.3f}')
+				#running_loss = 0.0
+		
 			
-			
+	end_time = datetime.now()
+	print('\nTime:',end_time - start_time)
+	
 	print('Finished Training.\n')
 	print(test_input.size(), test_classe.size())
 	

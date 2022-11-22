@@ -46,7 +46,7 @@ class Module(nn.Module):
 		
 
 if __name__ == "__main__":
-	
+
 	z = generate_pair_sets(1000)
 	
 	print('data set',len(z))	
@@ -103,9 +103,9 @@ if __name__ == "__main__":
 			optimizer.step()
 			
 			running_loss += loss.item()
-			if batch % 10 == 9:    # print every 2000 mini-batches
-				print(f'[{epoch + 1}, {batch + 1:5d}] loss: {running_loss / 2000:.3f}')
-				running_loss = 0.0
+			#if batch % 10 == 9:    # print every 2000 mini-batches
+				#print(f'[{epoch + 1}, {batch + 1:5d}] loss: {running_loss / 2000:.3f}')
+				#running_loss = 0.0
 			
 	print('Finished Training.\n')
 	
