@@ -8,10 +8,10 @@ import torch.nn.functional as F
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, ch1=64, ch2=64,
-                 conv1_kernel=3, conv2_kernel=2,
-                 use_max_pool1=True, max_pool1_kernel=3, max_pool_stride1=1,
-                 use_max_pool2=True, max_pool2_kernel=2, max_pool_stride2=1,
+    def __init__(self, ch_in=1, ch1=64, ch2=64,
+                 conv1_kernel=3, conv2_kernel=6,
+                 use_max_pool1=True, max_pool1_kernel=2, max_pool1_stride=2,
+                 use_max_pool2=False, max_pool2_kernel=2, max_pool2_stride=1,
                  dropout1=0.0, dropout2=0.0,
                  activation1=nn.ReLU(), activation2=nn.ReLU(),
                  use_batch_norm=True, use_skip_connections=False):
@@ -21,13 +21,13 @@ class ConvBlock(nn.Module):
         self.use_batch_norm = use_batch_norm
         self.skip_connections = use_skip_connections
 
-        self.conv1 = nn.Conv2d(ch1, ch2, conv1_kernel)
-        self.max_pool1 = nn.MaxPool2d(max_pool1_kernel, max_pool_stride1)
-        self.batch_norm1 = nn.BatchNorm2d(ch2)
+        self.conv1 = nn.Conv2d(ch_in, ch1, conv1_kernel)
+        self.max_pool1 = nn.MaxPool2d(max_pool1_kernel, max_pool1_stride)
+        self.batch_norm1 = nn.BatchNorm2d(ch1)
         self.activation1 = activation1
         self.dropout1 = nn.Dropout(dropout1)
-        self.conv2 = nn.Conv2d(ch2, ch2, conv2_kernel)
-        self.max_pool2 = nn.MaxPool2d(max_pool2_kernel, max_pool_stride2)
+        self.conv2 = nn.Conv2d(ch1, ch2, conv2_kernel)
+        self.max_pool2 = nn.MaxPool2d(max_pool2_kernel, max_pool2_stride)
         self.batch_norm2 = nn.BatchNorm2d(ch2)
         self.activation2 = activation2
         self.dropout2 = nn.Dropout(dropout2)
@@ -39,7 +39,8 @@ class ConvBlock(nn.Module):
         if self.use_batch_norm:
             y = self.batch_norm1(y)
         y = self.activation1(y)
-        y = self.dropout1(y)
+        if self.dropout1.p > 0:
+            y = self.dropout1(y)
 
         y = self.conv2(y)
         if self.use_max_pool2:
@@ -49,7 +50,8 @@ class ConvBlock(nn.Module):
         if self.skip_connections:
             y = y + x
         y = self.activation2(y)
-        y = self.dropout2(y)
+        if self.dropout2.p > 0:
+            y = self.dropout2(y)
 
         return y
 
@@ -57,10 +59,10 @@ class ConvBlock(nn.Module):
 class ConvBlockReBa(nn.Module):
     # Apply BatchNorm after ReLU
     # https://stackoverflow.com/questions/39691902/ordering-of-batch-normalization-and-dropout
-    def __init__(self, ch1=64, ch2=64,
-                 conv1_kernel=3, conv2_kernel=2,
-                 use_max_pool1=True, max_pool1_kernel=3, max_pool_stride1=1,
-                 use_max_pool2=True, max_pool2_kernel=2, max_pool_stride2=1,
+    def __init__(self, ch_in=1, ch1=64, ch2=64,
+                 conv1_kernel=3, conv2_kernel=6,
+                 use_max_pool1=True, max_pool1_kernel=3, max_pool1_stride=1,
+                 use_max_pool2=True, max_pool2_kernel=2, max_pool2_stride=1,
                  dropout1=0.0, dropout2=0.0,
                  activation1=nn.ReLU(), activation2=nn.ReLU(),
                  use_skip_connections=False):
@@ -69,13 +71,13 @@ class ConvBlockReBa(nn.Module):
         self.use_max_pool2 = use_max_pool2
         self.skip_connections = use_skip_connections
 
-        self.conv1 = nn.Conv2d(ch1, ch2, conv1_kernel)
-        self.max_pool1 = nn.MaxPool2d(max_pool1_kernel, max_pool_stride1)
-        self.batch_norm1 = nn.BatchNorm2d(ch2)
+        self.conv1 = nn.Conv2d(ch_in, ch1, conv1_kernel)
+        self.max_pool1 = nn.MaxPool2d(max_pool1_kernel, max_pool1_stride)
+        self.batch_norm1 = nn.BatchNorm2d(ch1)
         self.activation1 = activation1
         self.dropout1 = nn.Dropout(dropout1)
-        self.conv2 = nn.Conv2d(ch2, ch2, conv2_kernel)
-        self.max_pool2 = nn.MaxPool2d(max_pool2_kernel, max_pool_stride2)
+        self.conv2 = nn.Conv2d(ch1, ch2, conv2_kernel)
+        self.max_pool2 = nn.MaxPool2d(max_pool2_kernel, max_pool2_stride)
         self.batch_norm2 = nn.BatchNorm2d(ch2)
         self.activation2 = activation2
         self.dropout2 = nn.Dropout(dropout2)
@@ -85,7 +87,8 @@ class ConvBlockReBa(nn.Module):
         if self.use_max_pool1:
             y = self.max_pool1(y)
         y = self.activation1(y)
-        y = self.dropout1(y)
+        if self.dropout1.p > 0:
+            y = self.dropout1(y)
         y = self.batch_norm1(y)
 
         y = self.conv2(y)
@@ -94,21 +97,23 @@ class ConvBlockReBa(nn.Module):
         if self.skip_connections:
             y = y + x
         y = self.activation2(y)
-        y = self.dropout2(y)
+        if self.dropout2.p > 0:
+            y = self.dropout2(y)
         y = self.batch_norm2(y)
 
         return y
 
 
 class FCBlock(nn.Module):
-    def __init__(self, fc, out=10,
+    def __init__(self, input_size=None, fc=64, out=10,
                  dropout=0.0,
                  activation1=nn.ReLU(), activation2=nn.ReLU(),
                  use_batch_norm=True):
         super().__init__()
         self.use_batch_norm = use_batch_norm
 
-        self.fc1 = nn.LazyLinear(fc)
+        self.fc1 = nn.Linear(
+            input_size, fc) if input_size else nn.LazyLinear(fc)
         self.activation1 = activation1
         self.dropout = nn.Dropout(dropout)
         self.batch_norm = nn.BatchNorm1d(fc)
@@ -118,7 +123,8 @@ class FCBlock(nn.Module):
     def forward(self, x):
         y = self.fc1(x)
         y = self.activation1(y)
-        y = self.dropout(y)
+        if self.dropout.p > 0:
+            y = self.dropout(y)
         if self.use_batch_norm:
             y = self.batch_norm(y)
         y = self.fc2(y)
@@ -128,14 +134,14 @@ class FCBlock(nn.Module):
 
 def build_predictFC():
     return nn.Sequential(
-        nn.Linear(10, 1),
+        nn.Linear(20, 1),
         nn.Sigmoid()
     )
 
 
 def build_predictFC2():
     return nn.Sequential(
-        nn.Linear(10, 2),
+        nn.Linear(20, 2),
         nn.Softmax(dim=1)
     )
 
@@ -157,10 +163,18 @@ def compute_probabilities(x, apply_softmax=False):
 
 class Siamese(nn.Module):
 
-    def __init__(self, conv_block_parameters, fc_parameters, predict=build_predictFC()):
+    def __init__(self, conv_block_parameters=None, fc_parameters=None, predict=build_predictFC()):
         super().__init__()
+
+        if conv_block_parameters is None:
+            conv_block_parameters = {}
+        if fc_parameters is None:
+            fc_parameters = {}
+
         self.conv_block_parameters = conv_block_parameters
         self.conv_block = ConvBlock(**conv_block_parameters)
+
+        self.flatten = nn.Flatten()
 
         self.fc_block_parameters = fc_parameters
         self.fc_block = FCBlock(**fc_parameters)
@@ -169,7 +183,7 @@ class Siamese(nn.Module):
 
     def forward_once(self, x):
         y = self.conv_block(x)
-        y = y.flatten()
+        y = self.flatten(y)
         y = self.fc_block(y)
         return y
 
@@ -189,6 +203,8 @@ class CNN(nn.Module):
     def __init__(self, conv_block_parameters, fc_parameters, predict=build_predictFC()):
         super().__init__()
         self.conv_block_parameters = conv_block_parameters
+        self.conv_block_parameters['ch_in'] = conv_block_parameters.get(
+            'ch_in', 2)
         self.conv_block = ConvBlock(**conv_block_parameters)
 
         self.fc_block_parameters = fc_parameters
