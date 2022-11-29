@@ -261,7 +261,7 @@ def train_model(model: nn.Module,
             else:
                 loss_class2 = 0
 
-            if freeze_epochs < nb_epochs:
+            if freeze_epochs > nb_epochs:
                 loss = loss_class1 + loss_class2
             else:
                 loss = weight_loss_pairs * loss_pairs + weight_loss_classes * (loss_class1 + loss_class2)
@@ -299,7 +299,7 @@ def train_model(model: nn.Module,
                     else:
                         loss_class2 = 0
 
-                    if freeze_epochs < nb_epochs:
+                    if freeze_epochs > nb_epochs:
                         loss = loss_class1 + loss_class2
                     else:
                         loss = weight_loss_pairs * loss_pairs + weight_loss_classes * (loss_class1 + loss_class2)
@@ -376,8 +376,8 @@ def evaluate_model(model_builder, model_params,
     if optimizer_params is None:
         optimizer_params = {}
 
-    info = {'train': {'loss': [], 'acc_leq': [], 'acc_class1': [], 'acc_class2': []},
-            'test': {'loss': [], 'acc_leq': [], 'acc_class1': [], 'acc_class2': []}}
+    info = {'train': {'loss': [], 'acc_leq': [], 'acc_classes': [], 'acc_naive': []},
+            'test': {'loss': [], 'acc_leq': [], 'acc_classes': [], 'acc_naive': []}}
 
     for i in range(10):
         print(f'Cycle {i + 1}/10')
@@ -413,6 +413,18 @@ def evaluate_model(model_builder, model_params,
             torch.save(model, export_path + f'model_{i + 1}.pt')  # Export weights and architecture
 
     return info
+
+
+def import_model(path: str):
+    """
+    Import a model.
+    
+    Parameters
+    ----------
+    path : str
+        The path to the model file.
+    """
+    return torch.load(path)
 
 
 if __name__ == '__main__':
