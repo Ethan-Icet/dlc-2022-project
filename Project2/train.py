@@ -4,7 +4,7 @@ import torch.nn as nn
 from activation import ReLU, Tanh, MSELoss
 from linear import Linear
 from sequential import Sequential, Module
-
+from optimizer import *
 
 def generate_points(n=1000):
     """
@@ -98,10 +98,10 @@ def generate_with_ratio(n=1000, ratio=0.5):
             break
 
     # Assign labels
-    train_target[train_target == 1] = points[dist <= radius][:int(n * ratio)]
-    train_target[train_target == 0] = points[dist > radius][:int(n * (1 - ratio))]
-    test_target[test_target == 1] = points[dist <= radius][int(n * ratio):int(n * ratio) + int(n * ratio)]
-    test_target[test_target == 0] = points[dist > radius][
+    train_input[(train_target == 1)[:,0]] = points[dist <= radius][:int(n * ratio)]
+    train_input[(train_target == 0)[:,0]] = points[dist > radius][:int(n * (1 - ratio))]
+    test_input[(test_target == 1)[:,0]] = points[dist <= radius][int(n * ratio):int(n * ratio) + int(n * ratio)]
+    test_input[(test_target == 0)[:,0]] = points[dist > radius][
                                     int(n * (1 - ratio)):int(n * (1 - ratio)) + int(n * (1 - ratio))]
 
     return train_input, train_target, test_input, test_target
@@ -206,7 +206,7 @@ def train_regular_model(model: nn.Module,
     """
 
     if optimizer is None:
-        optimizer = torch.optim.Adam(model.parameters())
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     eval_test = test_input is not None and test_target is not None
 
     info = {'train_loss': [], 'test_loss': [], 'train_error': [], 'test_error': []}
@@ -256,7 +256,7 @@ def train_model(model: Module,
                 test_input: torch.Tensor = None, test_target: torch.Tensor = None,
                 nb_epochs: int = 25, mini_batch_size: int = 100,
                 criterion=MSELoss(),
-                optimizer: torch.optim = None,
+                optimizer: Optimizer = None,
                 verbose: bool = False) \
         -> dict:
     """
@@ -296,7 +296,7 @@ def train_model(model: Module,
     """
 
     if optimizer is None:
-        optimizer = torch.optim.Adam(model.param())  # instead of model.parameters()
+        optimizer = SGD(model.param(), lr=0.01)
     eval_test = test_input is not None and test_target is not None
 
     info = {'train_loss': [], 'test_loss': [], 'train_error': [], 'test_error': []}
@@ -310,9 +310,12 @@ def train_model(model: Module,
             loss = criterion.forward(output, train_target.narrow(0, b, mini_batch_size))
 
             train_loss += loss.item()
-
+            # reset the gradient
             optimizer.zero_grad()
-            loss.backward()
+            # compute the gradient
+            grad = criterion.backward()
+            model.backward(grad)
+            # update the parameters
             optimizer.step()
 
         info['train_loss'].append(train_loss)
@@ -339,3 +342,22 @@ def train_model(model: Module,
                     f'Epoch {e + 1}/{nb_epochs}: Test loss = {info["test_loss"][-1]:.4f}, Test error = {info["test_error"][-1]:.4f}')
 
     return info
+
+
+if __name__ == "__main__":
+    train_input, train_target, test_input, test_target = generate_points(1000)
+    # test shape and type
+    print(train_input.shape, train_input.dtype)
+    print(train_target.shape, train_target.dtype)
+    print(test_input.shape, test_input.dtype)
+    print(test_target.shape, test_target.dtype)
+    # make a model
+    n = 25
+    model = Sequential(Linear(2, n), Tanh(), Linear(n,n),  ReLU(), Linear(n, 1), Tanh())
+    # train the model
+    n_epochs = 100
+    mini_batch_size = 10
+    info = train_model(model, train_input, train_target, test_input, test_target, nb_epochs=n_epochs, mini_batch_size=mini_batch_size, verbose=True)
+    # test the model
+    accuracy = compute_accuracy(model, test_input, test_target)
+    print(f'Accuracy: {accuracy:.4f}')
