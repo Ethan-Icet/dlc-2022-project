@@ -73,7 +73,7 @@ if __name__ == '__main__':
 
     # define model
     n = 25
-    model = Sequential(Linear(2, n), Tanh(), Linear(n,n),  ReLU(), Linear(n, 1))
+    model = Sequential(Linear(2, n), Tanh(), Linear(n,n),  ReLU(), Linear(n, 1), Tanh())
     lossMSE = MSELoss()
 
     # define mini-batch size
@@ -110,4 +110,3 @@ if __name__ == '__main__':
     pred_label = torch.where(pred > 0.5, 1, 0)
     acc = torch.sum(pred_label == y_test).item() / y_test.size(0)
     print(f"\ntest accuracy: {acc}")
-	
