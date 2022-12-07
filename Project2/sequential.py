@@ -5,7 +5,7 @@ from linear import  Linear
 class Sequential(Module):
     def __init__(self, *modules):
         super().__init__()
-        self.modules = modules
+        self.modules = list(modules)
   
 
     def forward(self, x):
@@ -71,3 +71,9 @@ if __name__ == "__main__":
     # print(grad_torch, grad_custom)
     # make sure the gradients are the same
     print(f"Are the gradients the same? {torch.allclose(grad_custom, grad_torch)}")
+
+    # test if we can update the parameters
+    initial = linear_custom_list[0].w.clone()
+    # update the parameters
+    seq_custom.param()[0][0] += 1
+    print("Are the parameters updated? ", torch.allclose(initial + 1, linear_custom_list[0].w))

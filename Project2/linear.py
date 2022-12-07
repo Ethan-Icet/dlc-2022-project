@@ -54,7 +54,7 @@ class Linear(Module):
 
     def param(self) -> list:
         # return pairs of parameters and gradients
-        return [(self.w, self.w_grad), (self.b, self.b_grad)]
+        return [[self.w, self.w_grad], [self.b, self.b_grad]]
 
     def __repr__(self):
         # fancy print
