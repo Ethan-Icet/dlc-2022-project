@@ -29,11 +29,12 @@ class Tanh(Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         self.x = x
-        # return x.tanh()
-        return 2 / (1 + (-2 * x).exp()) - 1
+        return x.tanh()
+        # return 2 / (1 + (-2 * x).exp()) - 1
 
     def backward(self, grad: torch.Tensor) -> torch.Tensor:
-        ds_dx = 4 * torch.exp(2 * self.x) / (1 + torch.exp(2 * self.x)).pow(2)
+        # ds_dx = 4 * torch.exp(2 * self.x) / (1 + torch.exp(2 * self.x)).pow(2)
+        ds_dx = 1 - self.x.tanh().pow(2)
         return ds_dx * grad
 
     def param(self) -> list:
