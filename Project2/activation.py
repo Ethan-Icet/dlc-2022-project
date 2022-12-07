@@ -29,8 +29,8 @@ class Tanh(Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         self.x = x
-        return x.tanh()
         # return 2 / (1 + (-2 * x).exp()) - 1
+        return x.tanh()
 
     def backward(self, grad: torch.Tensor) -> torch.Tensor:
         # ds_dx = 4 * torch.exp(2 * self.x) / (1 + torch.exp(2 * self.x)).pow(2)
@@ -44,9 +44,31 @@ class Tanh(Module):
         return "Tanh()"
 
 
+class Sigmoid(Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.x = None
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.x = x
+        return x.sigmoid()
+
+    def backward(self, grad: torch.Tensor) -> torch.Tensor:
+        ds_dx = self.x.sigmoid() * (1 - self.x.sigmoid())
+        return ds_dx * grad
+
+    def param(self) -> list:
+        return []
+
+    def __repr__(self) -> str:
+        return "Sigmoid()"
+
+
 class MSELoss(Module):
     def __init__(self) -> None:
         super().__init__()
+        self.input = None
+        self.target = None
 
     def forward(self, input: torch.Tensor, target: torch.Tensor,
                 reduction: str = 'mean') -> torch.Tensor:
@@ -74,7 +96,7 @@ class MSELoss(Module):
         return "MSELoss()"
 
 
-if __name__ == '__main__':
+def _test():
     # Compare torch implementation with our own framework
     print("Test 1")
     shape = (5, 5)
@@ -106,13 +128,17 @@ if __name__ == '__main__':
     print("Test 2")
     x = torch.randn(batch_size, *shape)
     reduction = 'mean'
-    y = mse.forward(x, 2*torch.ones(batch_size, *shape), reduction=reduction)
+    y = mse.forward(x, 2 * torch.ones(batch_size, *shape), reduction=reduction)
     dy = mse.backward(reduction=reduction)
 
     x.requires_grad = True
-    y2 = torch.nn.functional.mse_loss(x, 2*torch.ones(batch_size, *shape), reduction=reduction)
+    y2 = torch.nn.functional.mse_loss(x, 2 * torch.ones(batch_size, *shape), reduction=reduction)
     y2.backward()
     dy2 = x.grad
 
     print("y", torch.allclose(y, y2), y, y2, sep='\n')
     print("dy", torch.allclose(dy, dy2), dy, dy2, sep='\n')
+
+
+if __name__ == '__main__':
+    _test()
