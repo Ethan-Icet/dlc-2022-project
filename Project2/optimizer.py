@@ -14,6 +14,7 @@ class Optimizer:
     def __repr__(self) -> str:
         pass
 
+
 class SGD(Optimizer):
     def __init__(self, parameters: list, lr: float) -> None:
         super().__init__()
