@@ -4,6 +4,7 @@ from module import *
 from activation import *
 from linear import *
 from sequential import *
+from optimizer import *
 
 """
 You must implement a test executable named test.py that imports your framework and
@@ -80,6 +81,7 @@ if __name__ == '__main__':
     batch_size = 10
     nb_epochs = 100
     lr = 0.01
+    optimizer = SGD(model.param(), lr=lr)
 
     for e in range(nb_epochs):
         acc_loss = 0 # accumulate the loss
@@ -93,14 +95,13 @@ if __name__ == '__main__':
             loss = lossMSE.forward(pred, mini_batch_target)
             # compute the accumulated loss
             acc_loss = acc_loss + loss.item()
+            # zero the gradients
+            optimizer.zero_grad()
             # gradient descent
             grad_loss = lossMSE.backward()
             grad_loss = model.backward(grad_loss)
             # update the parameters
-            for p, g in model.param():
-                p -= lr * g # update the parameters
-                # reset the gradients to zero
-                g.zero_()
+            optimizer.step()
             
         print(f"epoch: {e} loss: {acc_loss}", end="\r", flush=True)
 
