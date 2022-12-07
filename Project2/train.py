@@ -465,7 +465,7 @@ def main():
     n_epochs = 100
     mini_batch_size = 10
     criterion = MSELoss()
-    optimizer = SGD(model.param(), lr=0.01)
+    optimizer = SGD(model.param(), lr=0.01, momentum=0, dampening=0, weight_decay=0, nesterov=False)
     info = train_model(model, train_input, train_target, test_input, test_target,
                        nb_epochs=n_epochs, mini_batch_size=mini_batch_size,
                        criterion=criterion, optimizer=optimizer, verbose=True)
