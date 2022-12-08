@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from activation import ReLU, Tanh, Sigmoid, MSELoss
-from linear import Linear
-from sequential import Sequential, Module
-from optimizer import SGD, Optimizer
+from activation import *
+from linear import *
+from sequential import *
+from optimizer import *
 
 import matplotlib.pyplot as plt
 
@@ -465,7 +465,8 @@ def main():
     n_epochs = 100
     mini_batch_size = 10
     criterion = MSELoss()
-    optimizer = SGD(model.param(), lr=0.01, momentum=0, dampening=0, weight_decay=0, nesterov=False)
+    # optimizer = SGD(model.param(), lr=0.01, momentum=0, dampening=0, weight_decay=0, nesterov=False)
+    optimizer = Adam(model.param(), lr=0.01, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, amsgrad=False)
     info = train_model(model, train_input, train_target, test_input, test_target,
                        nb_epochs=n_epochs, mini_batch_size=mini_batch_size,
                        criterion=criterion, optimizer=optimizer, verbose=True)
