@@ -74,10 +74,11 @@ def output_to_predictions(out_leq: torch.Tensor, out_class0: torch.Tensor, out_c
     if one_hot_classes and out_class0 is not None and out_class1 is not None:
         out_class0 = out_class0.argmax(1)
         out_class1 = out_class1.argmax(1)
-    if one_hot_leq:
-        out_leq = out_leq.argmax(1)
-    else:
-        out_leq = (out_leq > 0.5).long()
+    if out_leq is not None:
+        if one_hot_leq:
+            out_leq = out_leq.argmax(1)
+        else:
+            out_leq = (out_leq > 0.5).long()
     return out_leq, (out_class0, out_class1)
 
 
@@ -146,7 +147,9 @@ def compute_accuracy(model: nn.Module,
     """
     pred_leq, (pred_class0, pred_class1) = compute_predictions(model, data_input,
                                                                one_hot_classes=one_hot_classes, one_hot_leq=one_hot_leq)
-    acc_leq = (pred_leq.flatten() == data_target).float().mean().item()
+    acc_leq = None
+    if pred_leq is not None:
+        acc_leq = (pred_leq.flatten() == data_target).float().mean().item()
     acc_classes = acc_naive = None
     if pred_class0 is not None and pred_class1 is not None:
         acc_classes = ((pred_class0 == data_classes[:, 0]) & (pred_class1 == data_classes[:, 1])).float().mean().item()
@@ -573,8 +576,14 @@ def info_stats(info: dict) -> dict:
     for mode in info:
         stats[mode] = {}
         for metric in info[mode]:
-            stats[mode][metric] = {'mean': np.mean(info[mode][metric], axis=0),
-                                   'std': np.std(info[mode][metric], axis=0)}
+            if info[mode][metric][0][0] is None:
+                stats[mode][metric] = {
+                    'mean': np.array([]),
+                    'std': np.array([])
+                }
+            else:
+                stats[mode][metric] = {'mean': np.mean(info[mode][metric], axis=0),
+                                       'std': np.std(info[mode][metric], axis=0)}
     return stats
 
 
