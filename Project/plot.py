@@ -76,7 +76,7 @@ def plot_info_cycle(info_cycle: dict, show: bool = True, close: bool = False, pa
     figures.append(fig)
     plt.plot(info_cycle['train']['acc_naive'], label='train')
     plt.plot(info_cycle['test']['acc_naive'], '--', label='test')
-    plt.title('Model target ''naive'' accuracy')
+    plt.title("Model target 'naive' accuracy")
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.legend(loc='lower right')
@@ -160,6 +160,7 @@ def plot_info(means: dict = None, stds: dict = None, show: bool = False, close: 
                      means['train']['acc_naive'] + stds['train']['acc_naive'], alpha=0.2)
     plt.fill_between(range(len(means['test']['acc_naive'])), means['test']['acc_naive'] - stds['test']['acc_naive'],
                      means['test']['acc_naive'] + stds['test']['acc_naive'], alpha=0.2)
+    plt.title("Model target 'naive' accuracy")
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.legend(loc='lower right')
@@ -249,6 +250,7 @@ def plot_stats(stats: dict, show: bool = True, close: bool = False, path: str = 
     plt.fill_between(range(len(stats['test']['acc_naive']['mean'])),
                      stats['test']['acc_naive']['mean'] - stats['test']['acc_naive']['std'],
                      stats['test']['acc_naive']['mean'] + stats['test']['acc_naive']['std'], alpha=0.2)
+    plt.title("Model target 'naive' accuracy")
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.legend(loc='lower right')
