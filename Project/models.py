@@ -255,7 +255,7 @@ class FC(nn.Module):
         return y, (y1, y2)
 
 
-############################################################################################################
+########################################################################################################################
 # Raphael
 
 class BaseLineNet(nn.Module):
@@ -283,3 +283,243 @@ class BaseLineNet(nn.Module):
         classes = (c1, c2)
         # we output the prediction and the classes if we want to use auxiliary loss
         return x, classes
+
+
+# siamese convolutional network
+class SiameseConvNet1(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # first we define the shared cnn part
+        self.convNet = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=3),  # image size: 14x14 => 12x12
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),  # image size: 12x12 => 6x6
+            nn.Conv2d(64, 80, kernel_size=3),  # image size: 6x6 => 4x4
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),  # image size: 4x4 => 2x2
+            nn.Conv2d(80, 64, kernel_size=2),  # image size: 2x2 => 1x1
+            nn.Flatten(),  # flatten the output: N x 64 x 1 x 1 => N x 64
+            nn.ReLU(),
+            # linear layer to get the classes
+            nn.Linear(64, 32),
+            nn.Linear(32, 10),  # 10 classes
+            nn.Softmax(dim=1),  # softmax to get a probability distribution over the classes
+        )
+
+        # fully connected layers to get the classes prediction and the target prediction
+        self.fcNet = nn.Sequential(
+            nn.Linear(20, 20),
+            nn.Linear(20, 1),  # 2 inputs images and 10 classes => 2x10
+            # 1 output: answer to the question: is the first digit less or equal to the second digit?
+            nn.Sigmoid()  # sigmoid to get an answer between 0 and 1
+        )
+
+    def forward(self, x):
+        # apply the convolutional layers
+        c1 = self.convNet(x[:, 0, :, :].unsqueeze(1))  # unsqueeze to add the channel dimension: N x 1 x 14 x 14
+        c2 = self.convNet(x[:, 1, :, :].unsqueeze(1))
+        # size of c1 and c2: N x 10
+        # concatenate the classes prediction
+        classes = torch.cat((c1.unsqueeze(1), c2.unsqueeze(1)), dim=1)  # N x 2 x 10
+        # apply the fully connected layers to get the target prediction
+        x = self.fcNet(classes.view(-1, 20))
+        # we output the prediction and the classes if we want to use auxiliary loss
+        return x, (c1, c2)
+
+
+# siamese convolutional network with prior knowledge on comparison
+class SiameseConvNet2(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # first we define the shared cnn part
+        self.convNet = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=3),  # image size: 14x14 => 12x12
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),  # image size: 12x12 => 6x6
+            nn.Conv2d(64, 80, kernel_size=3),  # image size: 6x6 => 4x4
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),  # image size: 4x4 => 2x2
+            nn.Conv2d(80, 64, kernel_size=2),  # image size: 2x2 => 1x1
+            nn.Flatten(),  # flatten the output: N x 64 x 1 x 1 => N x 64
+            nn.ReLU(),
+            # linear layer to get the classes
+            nn.Linear(64, 32),
+            nn.Linear(32, 10),  # 10 classes
+            nn.Softmax(dim=1),  # softmax to get a probability distribution over the classes
+        )
+
+    def forward(self, x):
+        # apply the convolutional layers
+        c1 = self.convNet(x[:, 0, :, :].unsqueeze(1))  # unsqueeze to add the channel dimension: N x 1 x 14 x 14
+        c2 = self.convNet(x[:, 1, :, :].unsqueeze(1))
+        # size of c1 and c2: N x 10
+        # concatenate the classes prediction
+        classes = torch.cat((c1.unsqueeze(1), c2.unsqueeze(1)), dim=1)  # N x 2 x 10
+        # computes the matrix of joint probabilities
+        joint_prob = torch.einsum('ij,ik->ijk', c1, c2)  # N x 10 x 10
+        # takes the upper triangular part of the matrix
+        upper_tri = torch.triu(joint_prob)  # N x 10 x 10
+        # sums the probabilities
+        x = torch.sum(upper_tri, dim=(1, 2)).unsqueeze(1)
+        # N x 1 => probability that the first digit is less or equal to the second digit
+        return torch.clamp(x, 0, 1), (c1, c2)
+
+
+########################################################################################################################
+# Kathleen
+
+class SiameseNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3)  # 1, 16
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3)  # 16, 8
+        self.maxpool_2d = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(5 * 5 * 32, 160)
+        self.fc2 = nn.Linear(160, 10)
+
+        self.lin1 = nn.Linear(2, 20)
+        self.lin2 = nn.Linear(20, 2)
+
+    def forward_once(self, x1):
+        x = F.relu(self.conv1(x1))
+        # x = F.dropout(x, p=0.5, training=self.training)
+        x = F.relu(F.max_pool2d(self.conv2(x), 2))
+        # x = F.dropout(x, p=0.5)#, training=training)
+
+        x = x.view(-1, 5 * 5 * 32)
+        x = F.relu(self.fc1(x))
+        # x = F.dropout(x, training=training)
+        x = self.fc2(x)
+        x = F.softmax(x, dim=1)  # Changed from log_softmax because negative otherwise
+
+        return x
+
+    def forward(self, x):
+        x1 = x[:, 0].view(x.size(0), 1, 14, 14)
+        x2 = x[:, 1].view(x.size(0), 1, 14, 14)
+
+        y1 = self.forward_once(x1)
+        y2 = self.forward_once(x2)  # torch.Size([50, 10])
+
+        z1 = torch.argmax(y1, 1)
+        z2 = torch.argmax(y2, 1)
+
+        x = torch.cat((z1.view(-1, z1.size(0)), z2.view(-1, z2.size(0))), axis=0).t().float()
+
+        x = nn.functional.relu(self.lin1(x))
+        x = nn.functional.relu(self.lin2(x))
+        x = F.softmax(x, dim=1)  # Changed from log_softmax because negative otherwise
+
+        return x, (y1, y2)
+
+
+class SiameseNNAll(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3)  # 1, 16
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3)  # 16, 8
+        self.maxpool_2d = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(5 * 5 * 32, 256)
+        self.fc2 = nn.Linear(256, 10)
+
+        self.lin1 = nn.Linear(2, 20)
+        self.lin2 = nn.Linear(20, 2)
+
+    def forward_once(self, x1):
+        x = F.relu(self.conv1(x1))
+        # x = F.dropout(x, p=0.5, training=self.training)
+        x = F.relu(F.max_pool2d(self.conv2(x), 2))
+        # x = F.dropout(x, p=0.5)#, training=training)
+
+        x = x.view(-1, 5 * 5 * 32)
+        x = F.relu(self.fc1(x))
+        # x = F.dropout(x, training=training)
+        x = self.fc2(x)
+        x = F.softmax(x, dim=1)  # Changed from log_softmax because negative otherwise
+
+        return x
+
+    def forward(self, x):
+        x1 = x[:, 0].view(x.size(0), 1, 14, 14)
+        x2 = x[:, 1].view(x.size(0), 1, 14, 14)
+
+        y1 = self.forward_once(x1)
+        y2 = self.forward_once(x2)  # torch.Size([50, 10])
+
+        z1 = torch.argmax(y1, 1)
+        z2 = torch.argmax(y2, 1)
+
+        x = torch.cat((z1.view(-1, z1.size(0)), z2.view(-1, z2.size(0))), axis=0).t().float()
+
+        x = nn.functional.relu(self.lin1(x))
+        x = nn.functional.relu(self.lin2(x))
+        x = F.softmax(x, dim=1)  # Changed from log_softmax because negative otherwise
+
+        return x, (y1, y2)
+
+
+class Siamese2(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(1, 8, kernel_size=3)  # (1, 32, kernel_size=3)
+        self.conv2 = nn.Conv2d(8, 16, kernel_size=3)  # (32, 64, kernel_size=3)
+        self.maxpool_2d = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(5 * 5 * 16, 120)  # (5*5*64, 256)
+        self.fc2 = nn.Linear(120, 10)  # (256, 10)
+
+    def forward_once(self, x1):
+        x = F.relu(self.conv1(x1))
+        # x = F.dropout(x, p=0.5, training=self.training)
+        x = F.relu(F.max_pool2d(self.conv2(x), 2))
+        # x = F.dropout(x, p=0.5)#, training=training)
+
+        x = x.view(-1, 5 * 5 * 16)  # (-1, 5*5*64 )
+
+        x = F.relu(self.fc1(x))
+        # x = F.dropout(x, training=training)
+        x = self.fc2(x)
+        x = F.softmax(x, dim=1)  # Changed from log_softmax because negative otherwise
+        return x
+
+    def forward(self, x):
+        x1 = x[:, 0].view(x.size(0), 1, 14, 14)
+        x2 = x[:, 1].view(x.size(0), 1, 14, 14)
+        y1 = self.forward_once(x1)
+        y2 = self.forward_once(x2)  # torch.Size([50, 10])
+        return None, (y1, y2)
+
+
+class SiameseAll(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+        self.maxpool_2d = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(5 * 5 * 64, 256)
+        self.fc2 = nn.Linear(256, 10)
+
+    def forward_once(self, x1):
+        x = F.relu(self.conv1(x1))
+        # x = F.dropout(x, p=0.5, training=self.training)
+        x = F.relu(F.max_pool2d(self.conv2(x), 2))
+        # x = F.dropout(x, p=0.5)#, training=training)
+
+        x = x.view(-1, 5 * 5 * 64)
+
+        x = F.relu(self.fc1(x))
+        # x = F.dropout(x, training=training)
+        x = self.fc2(x)
+        x = F.softmax(x, dim=1)  # Changed from log_softmax because negative otherwise
+        return x
+
+    def forward(self, x):
+        x1 = x[:, 0].view(x.size(0), 1, 14, 14)
+        x2 = x[:, 1].view(x.size(0), 1, 14, 14)
+
+        y1 = self.forward_once(x1)
+        y2 = self.forward_once(x2)  # torch.Size([50, 10])
+        return None, (y1, y2)
