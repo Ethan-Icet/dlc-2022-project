@@ -1,0 +1,14 @@
+MODIFICATION to bring - for project 2 -
+
+	# define modele with layers
+	#
+	# write predict function to predict 0 or 1 if y > 0.5 or y < 0.5 
+				( - according to activation function - )
+	#
+	# modify backward to cumulate gradients
+				( - according to batch size - )
+				
+	# implement optimizer while computing weights cf. course 5-2-SGD
+	
+	
+	# check if gradient computation is right
