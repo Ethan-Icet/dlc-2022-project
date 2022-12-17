@@ -347,6 +347,10 @@ def train_model(model: nn.Module,
 
             if freeze_epochs > nb_epochs:
                 loss = loss_class0 + loss_class1
+            elif weight_loss_classes == 0:
+                loss = loss_leq
+            elif weight_loss_leq == 0:
+                loss = loss_class0 + loss_class1
             else:
                 loss = weight_loss_leq * loss_leq + weight_loss_classes * (loss_class0 + loss_class1)
 
@@ -404,6 +408,10 @@ def train_model(model: nn.Module,
                         loss_class1 = 0
 
                     if freeze_epochs > nb_epochs:
+                        loss = loss_class0 + loss_class1
+                    elif weight_loss_classes == 0:
+                        loss = loss_leq
+                    elif weight_loss_leq == 0:
                         loss = loss_class0 + loss_class1
                     else:
                         loss = weight_loss_leq * loss_leq + weight_loss_classes * (loss_class0 + loss_class1)
