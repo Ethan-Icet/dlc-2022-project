@@ -503,7 +503,7 @@ def evaluate_model(model_builder, model_params,
             'test': {'loss': [], 'acc_leq': [], 'acc_classes': [], 'acc_naive': []}}
 
     for i in range(n_cycle):
-        print(f'Cycle {i + 1}/10')
+        print(f'Cycle {i + 1}/{n_cycle}')
 
         train_input, train_target, train_classes, test_input, test_target, test_classes = \
             generate_pair_sets(1000)
