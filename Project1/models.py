@@ -61,14 +61,15 @@ class ConvBlockReBa(nn.Module):
     # https://stackoverflow.com/questions/39691902/ordering-of-batch-normalization-and-dropout
     def __init__(self, ch_in=1, ch1=64, ch2=64,
                  conv1_kernel=3, conv2_kernel=6,
-                 use_max_pool1=True, max_pool1_kernel=3, max_pool1_stride=1,
-                 use_max_pool2=True, max_pool2_kernel=2, max_pool2_stride=1,
+                 use_max_pool1=True, max_pool1_kernel=2, max_pool1_stride=2,
+                 use_max_pool2=False, max_pool2_kernel=2, max_pool2_stride=1,
                  dropout1=0.0, dropout2=0.0,
                  activation1=nn.ReLU(), activation2=nn.ReLU(),
-                 use_skip_connections=False):
+                 use_batch_norm=True, use_skip_connections=False):
         super().__init__()
         self.use_max_pool1 = use_max_pool1
         self.use_max_pool2 = use_max_pool2
+        self.use_batch_norm = use_batch_norm
         self.skip_connections = use_skip_connections
 
         self.conv1 = nn.Conv2d(ch_in, ch1, conv1_kernel)
@@ -89,7 +90,8 @@ class ConvBlockReBa(nn.Module):
         y = self.activation1(y)
         if self.dropout1.p > 0:
             y = self.dropout1(y)
-        y = self.batch_norm1(y)
+        if self.use_batch_norm:
+            y = self.batch_norm1(y)
 
         y = self.conv2(y)
         if self.use_max_pool2:
@@ -99,7 +101,8 @@ class ConvBlockReBa(nn.Module):
         y = self.activation2(y)
         if self.dropout2.p > 0:
             y = self.dropout2(y)
-        y = self.batch_norm2(y)
+        if self.use_batch_norm:
+            y = self.batch_norm2(y)
 
         return y
 
@@ -163,7 +166,7 @@ def compute_probabilities(x, apply_softmax=False):
 
 class Siamese(nn.Module):
 
-    def __init__(self, conv_block_parameters=None, fc_parameters=None, predict=build_predictFC()):
+    def __init__(self, conv_block_parameters=None, fc_parameters=None, predict=build_predictFC(), ReBa=False):
         super().__init__()
 
         if conv_block_parameters is None:
@@ -172,7 +175,7 @@ class Siamese(nn.Module):
             fc_parameters = {}
 
         self.conv_block_parameters = conv_block_parameters
-        self.conv_block = ConvBlock(**conv_block_parameters)
+        self.conv_block = ConvBlock(**conv_block_parameters) if not ReBa else ConvBlockReBa(**conv_block_parameters)
 
         self.flatten = nn.Flatten()
 
@@ -200,8 +203,14 @@ class Siamese(nn.Module):
 
 class CNN(nn.Module):
 
-    def __init__(self, conv_block_parameters, fc_parameters, predict=build_predictFC()):
+    def __init__(self, conv_block_parameters=None, fc_parameters=None, predict=build_predictFC()):
         super().__init__()
+
+        if conv_block_parameters is None:
+            conv_block_parameters = {}
+        if fc_parameters is None:
+            fc_parameters = {}
+
         self.conv_block_parameters = conv_block_parameters
         self.conv_block_parameters['ch_in'] = conv_block_parameters.get(
             'ch_in', 2)
@@ -214,10 +223,10 @@ class CNN(nn.Module):
         self.predict = predict
 
     def forward(self, x):
-        y = self.conv_block1(x)
-        y = y.flatten()
+        y = self.conv_block(x)
+        y = y.view(y.size(0), -1)
         y = self.fc_block(y)
-        y1, y2 = y[:, 0], y[:, 1]
+        y1, y2 = y[:, :10], y[:, 10:]
         y = self.predict(y)
         return y, (y1, y2)
 
